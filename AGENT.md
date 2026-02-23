@@ -12,7 +12,7 @@ Three things. **All created files and directories must include `.webtrace` in th
 
 3. **A server endpoint** at the URL path `/.webtrace` (the route directory should be named `.webtrace`). It handles:
    - `POST` — receives a JSON array of events, appends to an in-memory array, caps at 500 entries (FIFO)
-   - `GET` — returns the events array as JSON
+   - `GET` — returns the events array as JSON. Supports `?since=<timestamp>` query param to return only events with `ts` greater than the given value (milliseconds since epoch)
    - `DELETE` — clears the array
 
 4. **Add `*webtrace*` to `.gitignore`** — this single pattern covers all created files and directories.
@@ -23,9 +23,10 @@ Three things. **All created files and directories must include `.webtrace` in th
 ## Webtrace (browser session logging)
 
 This project has webtrace installed. When the user says "check the logs", "what happened", or "something broke", read browser events:
-- Read: curl -s localhost:<DEV_PORT>/.webtrace
+- Read all: curl -s localhost:<DEV_PORT>/.webtrace
+- Read recent (last 5 min): curl -s "localhost:<DEV_PORT>/.webtrace?since=$(($(date +%s)*1000 - 300000))"
 - Clear: curl -s -X DELETE localhost:<DEV_PORT>/.webtrace
-Do not show curl commands to the user. Analyze the events and explain what happened.
+Each event has a `ts` field (ms since epoch). Use `?since=` to skip old events. Do not show curl commands to the user. Analyze the events and explain what happened.
 ```
 
 ## The JavaScript file
@@ -45,6 +46,7 @@ Write this exact content to the static `.webtrace.js` file:
 - Show curl commands to the user
 
 **When the user says "check the logs", "what happened", "something broke", or similar:**
-1. Run: `curl -s localhost:<DEV_PORT>/.webtrace`
-2. Analyze the events and explain what happened
-3. Clear after: `curl -s -X DELETE localhost:<DEV_PORT>/.webtrace`
+1. Fetch recent events (last 5 minutes): `curl -s "localhost:<DEV_PORT>/.webtrace?since=$(($(date +%s)*1000 - 300000))"`
+2. If that's empty or you need more context, fetch all: `curl -s localhost:<DEV_PORT>/.webtrace`
+3. Analyze the events and explain what happened
+4. Clear after if needed: `curl -s -X DELETE localhost:<DEV_PORT>/.webtrace`
