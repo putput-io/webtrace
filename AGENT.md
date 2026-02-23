@@ -2,22 +2,22 @@
 
 Webtrace captures every browser interaction (clicks, API calls, errors, navigation) so you can see exactly what the user did.
 
-## What you're adding
+## Steps
 
-Three things. **All created files and directories must include `.webtrace` in the name** so a single gitignore pattern covers everything.
+**All created files and directories must include `.webtrace` in the name** so a single gitignore pattern covers everything.
 
-1. **A JavaScript file** (`.webtrace.js`) in the project's static/public asset directory so it's served directly by the dev server.
+1. **Add `*webtrace*` to `.gitignore`**
 
-2. **A script tag** in the project's HTML shell (`<script src="/.webtrace.js"></script>`) inside `<head>`, before app scripts.
+2. **Write `.webtrace.js`** to the project's static/public asset directory so it's served directly by the dev server. Contents are in "The JavaScript file" section below.
 
-3. **A server endpoint** at the URL path `/.webtrace` (the route directory should be named `.webtrace`). It handles:
+3. **Add a script tag** to the project's HTML shell: `<script src="/.webtrace.js"></script>` inside `<head>`, before app scripts.
+
+4. **Create a server endpoint** at the URL path `/.webtrace` (the route directory should be named `.webtrace`). It handles:
    - `POST` — receives a JSON array of events, appends to an in-memory array, caps at 500 entries (FIFO)
    - `GET` — returns the events array as JSON. Supports `?since=<timestamp>` query param to return only events with `ts` greater than the given value (milliseconds since epoch)
    - `DELETE` — clears the array
 
-4. **Add `*webtrace*` to `.gitignore`** — this single pattern covers all created files and directories.
-
-5. **Add a webtrace section to the project's agent instructions file** (e.g., `CLAUDE.md`, `.cursorrules`, `.github/copilot-instructions.md` — whichever exists). Append:
+5. **REQUIRED — Update the project's agent instructions file** so future agents know webtrace is installed. Find the project's instruction file (`CLAUDE.md`, `.cursorrules`, or `.github/copilot-instructions.md` — whichever exists) and append the following block. Replace `<DEV_PORT>` with the project's actual dev server port:
 
 ```
 ## Webtrace (browser session logging)
@@ -28,6 +28,8 @@ This project has webtrace installed. When the user says "check the logs", "what 
 - Clear: curl -s -X DELETE localhost:<DEV_PORT>/.webtrace
 Each event has a `ts` field (ms since epoch). Use `?since=` to skip old events. Do not show curl commands to the user. Analyze the events and explain what happened.
 ```
+
+**Do not skip step 5.** Without it, future agents won't know webtrace exists.
 
 ## The JavaScript file
 
