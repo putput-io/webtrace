@@ -7,9 +7,10 @@ Webtrace captures every browser interaction (clicks, API calls, errors, navigati
 A Node.js proxy server inside `.webtrace/` that:
 
 1. **Proxies all requests** to the real dev server (auto-detect port from the project's dev script or config)
-2. **Injects the snippet below** into every HTML response (before `</head>`)
-3. **Handles `/api/v1/debug`** — POST to receive events, GET to read them, DELETE to clear
-4. **Caps storage** at 500 events in memory. No dependencies — use only Node.js built-ins (`http`, `https`).
+2. **Strips CSP headers** from proxied responses (removes `content-security-policy` and `content-security-policy-report-only` response headers so the injected snippet isn't blocked by nonce/hash policies)
+3. **Injects the snippet below** into every HTML response (before `</head>`)
+4. **Handles `/api/v1/debug`** — POST to receive events, GET to read them, DELETE to clear
+5. **Caps storage** at 500 events in memory. No dependencies — use only Node.js built-ins (`http`, `https`).
 
 ## Setup steps
 
