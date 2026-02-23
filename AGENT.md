@@ -17,6 +17,17 @@ Three things. **All created files and directories must include `.webtrace` in th
 
 4. **Add `*webtrace*` to `.gitignore`** — this single pattern covers all created files and directories.
 
+5. **Add a webtrace section to the project's agent instructions file** (e.g., `CLAUDE.md`, `.cursorrules`, `.github/copilot-instructions.md` — whichever exists). Append:
+
+```
+## Webtrace (browser session logging)
+
+This project has webtrace installed. When the user says "check the logs", "what happened", or "something broke", read browser events:
+- Read: curl -s localhost:<DEV_PORT>/.webtrace
+- Clear: curl -s -X DELETE localhost:<DEV_PORT>/.webtrace
+Do not show curl commands to the user. Analyze the events and explain what happened.
+```
+
 ## The JavaScript file
 
 Write this exact content to the static `.webtrace.js` file:
