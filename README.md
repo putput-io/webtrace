@@ -13,9 +13,10 @@ Set up webtrace in this project: curl -sL https://raw.githubusercontent.com/putp
 ```
 
 The agent will:
-1. Write a `.webtrace.js` file to your static assets directory (gitignored)
+1. Write a `.webtrace.js` file to your static assets directory
 2. Add `<script src="/.webtrace.js"></script>` to your HTML
 3. Create a small server endpoint to store events in memory
+4. Add `*webtrace*` to `.gitignore` — all webtrace files are automatically excluded from commits and deploys, so you never have to worry about cleaning up
 
 Same port, same workflow. No proxy, no dependencies.
 
