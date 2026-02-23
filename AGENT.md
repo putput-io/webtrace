@@ -1,19 +1,28 @@
 # Webtrace — Agent Setup
 
-Browser event interceptor. Captures clicks, API calls, errors, navigation. You read the logs via curl.
+Webtrace captures every browser interaction (clicks, API calls, errors, navigation) so you can see exactly what the user did. It runs as a proxy in front of the dev server — zero project file changes.
 
-## Setup (2 changes)
+## What you're building
 
-### 1. Detect framework and find the HTML shell
+A Node.js proxy server inside `.webtrace/` that:
 
-| Marker file | Framework | HTML file |
-|---|---|---|
-| `svelte.config.js` | SvelteKit | `src/app.html` |
-| `next.config.*` | Next.js | `app/layout.tsx` |
-| `nuxt.config.ts` | Nuxt | `app.html` |
-| `vite.config.*` (no above) | Vite | `index.html` |
+1. **Proxies all requests** to the real dev server (auto-detect port from the project's dev script or config)
+2. **Injects the snippet below** into every HTML response (before `</head>`)
+3. **Handles `/api/v1/debug`** — POST to receive events, GET to read them (requires secret), DELETE to clear (requires secret)
+4. **Caps storage** at 500 events in memory. No dependencies — use only Node.js built-ins (`http`, `https`).
 
-### 2. Add the snippet to `<head>` (before app scripts)
+Generate a random secret for reading logs. Store it in the proxy code.
+
+## Setup steps
+
+1. Create `.webtrace/` directory
+2. Add `.webtrace/` to `.git/info/exclude` (local gitignore, never committed)
+3. Write the proxy server to `.webtrace/server.js`
+4. Test it: start the project's dev server, then start the proxy, then `curl` the proxy port to verify HTML includes the snippet
+
+## The snippet to inject
+
+Inject this exact HTML before `</head>` in every HTML response from the upstream dev server:
 
 ```html
 <!-- webtrace -->
@@ -22,93 +31,17 @@ Browser event interceptor. Captures clicks, API calls, errors, navigation. You r
 </script>
 ```
 
-### 3. Create the server endpoint
-
-Generate a random secret (16+ hex chars). Create the endpoint file for the detected framework:
-
-**SvelteKit** — create `src/routes/api/v1/debug/+server.ts`:
-```typescript
-import { json, type RequestHandler } from "@sveltejs/kit";
-const SECRET = "GENERATED_SECRET";
-const MAX = 500;
-const logs: { ts: number; type: string; detail: unknown }[] = [];
-export const POST: RequestHandler = async ({ request }) => {
-  const e = await request.json();
-  if (Array.isArray(e)) { logs.push(...e); while (logs.length > MAX) logs.shift(); }
-  return json({ ok: true });
-};
-export const GET: RequestHandler = async ({ url }) => {
-  if (url.searchParams.get("secret") !== SECRET) return new Response("", { status: 404 });
-  const since = Number(url.searchParams.get("since") || 0);
-  return json(since ? logs.filter(l => l.ts > since) : logs);
-};
-export const DELETE: RequestHandler = async ({ url }) => {
-  if (url.searchParams.get("secret") !== SECRET) return new Response("", { status: 404 });
-  logs.length = 0;
-  return json({ ok: true });
-};
-```
-
-**Next.js** — create `app/api/debug/route.ts`:
-```typescript
-import { NextRequest, NextResponse } from "next/server";
-const SECRET = "GENERATED_SECRET";
-const MAX = 500;
-const logs: { ts: number; type: string; detail: unknown }[] = [];
-export async function POST(req: NextRequest) {
-  const e = await req.json();
-  if (Array.isArray(e)) { logs.push(...e); while (logs.length > MAX) logs.shift(); }
-  return NextResponse.json({ ok: true });
-}
-export async function GET(req: NextRequest) {
-  if (req.nextUrl.searchParams.get("secret") !== SECRET) return new Response("", { status: 404 });
-  const since = Number(req.nextUrl.searchParams.get("since") || 0);
-  return NextResponse.json(since ? logs.filter(l => l.ts > since) : logs);
-}
-export async function DELETE(req: NextRequest) {
-  if (req.nextUrl.searchParams.get("secret") !== SECRET) return new Response("", { status: 404 });
-  logs.length = 0;
-  return NextResponse.json({ ok: true });
-}
-```
-
-**Express** — add to server file:
-```javascript
-const WEBTRACE_SECRET = "GENERATED_SECRET";
-const wtLogs = [];
-app.post("/api/v1/debug", express.json(), (req, res) => {
-  if (Array.isArray(req.body)) { wtLogs.push(...req.body); while (wtLogs.length > 500) wtLogs.shift(); }
-  res.json({ ok: true });
-});
-app.get("/api/v1/debug", (req, res) => {
-  if (req.query.secret !== WEBTRACE_SECRET) return res.status(404).send("");
-  const since = Number(req.query.since || 0);
-  res.json(since ? wtLogs.filter(l => l.ts > since) : wtLogs);
-});
-app.delete("/api/v1/debug", (req, res) => {
-  if (req.query.secret !== WEBTRACE_SECRET) return res.status(404).send("");
-  wtLogs.length = 0; res.json({ ok: true });
-});
-```
-
-### 4. Verify
-
-Run: `curl -s "localhost:<PORT>/api/v1/debug?secret=<SECRET>"` — should return `[]`.
-
 ## Agent behavior
 
-**After setup, tell the user:** "All done. Go ahead and test the site — when something breaks, tell me and I'll be able to tell you exactly what you did."
+**After setup, tell the user:** "All done. Go ahead and test the site at `localhost:<PROXY_PORT>` — when something breaks, tell me and I'll be able to tell you exactly what you did."
 
 **Do NOT:**
-- Show curl commands to the user
-- Commit the changes (let the user decide)
-- Show the secret to the user (you manage it)
+- Modify any project files outside `.webtrace/`
+- Commit anything
+- Show curl commands or the secret to the user
 
-**When the user says "check the webtrace logs" or similar:**
-1. Read the secret from the endpoint file you created
-2. Run: `curl -s "localhost:<PORT>/api/v1/debug?secret=<SECRET>"`
-3. Analyze the JSON events and explain what happened
-4. If needed, filter: `| jq '[.[] | select(.type == "error")]'`
-5. Clear after: `curl -s -X DELETE "localhost:<PORT>/api/v1/debug?secret=<SECRET>"`
-
-**To find the secret later:** read the server endpoint file and look for the `SECRET` constant.
+**When the user says "check the logs", "what happened", "something broke", or similar:**
+1. Read the secret from `.webtrace/server.js`
+2. Run: `curl -s "localhost:<PROXY_PORT>/api/v1/debug?secret=<SECRET>"`
+3. Analyze the events and explain what happened
+4. Clear after: `curl -s -X DELETE "localhost:<PROXY_PORT>/api/v1/debug?secret=<SECRET>"`

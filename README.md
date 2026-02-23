@@ -2,7 +2,7 @@
 
 See every click, API call, error, and page navigation in your browser — from your AI agent's perspective.
 
-One `<script>` tag. No SDK. No signup. Production-safe.
+Zero project file changes. Zero dependencies. Works with any framework.
 
 ## Setup
 
@@ -10,23 +10,17 @@ Paste this to your AI agent (Claude Code, Cursor, Codex, etc.):
 
 > **Add webtrace to this project so I can reproduce bugs in my browser and you can see exactly what happened. Read the setup instructions at: https://raw.githubusercontent.com/putput-io/webtrace/main/AGENT.md**
 
-The agent will:
-1. Detect your framework (SvelteKit, Next.js, Express, etc.)
-2. Add a `<script>` snippet to your HTML `<head>`
-3. Add a small server endpoint to receive events
-4. Generate a secret so only your agent can read the logs
-
-No npm install. No config files. Two small code changes, fully automated.
+The agent will create a `.webtrace/` folder (gitignored) containing a small proxy server that sits in front of your dev server. No project files are modified.
 
 ## Debugging
 
-After setup, the agent will say: "All done. Go ahead and test the site — when something breaks, tell me and I'll be able to tell you exactly what you did."
+After setup, the agent will say something like: "All done. Go ahead and test the site at `localhost:<port>` — when something breaks, tell me and I'll be able to tell you exactly what you did."
 
-Reproduce the bug, then tell your agent:
+Use the site. When something breaks:
 
 > **Something broke. Check the logs.**
 
-The agent silently reads the event stream — every click, every API request and response, every JS error, every navigation — and tells you what went wrong. No curl commands. No console pasting. It just knows.
+The agent reads the event stream — every click, every API call and response, every JS error, every navigation — and tells you what went wrong.
 
 ## What it captures
 
@@ -41,39 +35,31 @@ The agent silently reads the event stream — every click, every API request and
 | localStorage writes | Wraps `Storage.prototype.setItem` / `removeItem` |
 | Tab focus/blur | `visibilitychange` |
 
-## Production-safe
-
-Webtrace is designed to stay deployed:
-
-- **Auth-gated reads** — logs require a secret to access. Without it, the endpoint returns 404.
-- **Capped storage** — events auto-evict at 500 entries. No memory growth.
-- **No external calls** — events POST to your own server. No third-party services.
-- **~2KB client footprint** — negligible impact on page load.
-
 ## How it works
 
-The client snippet monkey-patches browser APIs (`fetch`, `history.pushState`, `Storage.setItem`) and uses event delegation (`document.addEventListener`) to capture everything without touching application code. Events are batched (300ms debounce) and POSTed as JSON to your server endpoint.
+The agent creates a Node.js proxy server in `.webtrace/` (using only built-in modules, no dependencies). The proxy:
 
-The server stores events in a capped in-memory array. The agent reads them via a GET request with the secret.
+1. Forwards all requests to your real dev server
+2. Injects a ~2KB `<script>` snippet into HTML responses
+3. Receives browser events at `/api/v1/debug` and stores them in memory (capped at 500)
+4. Serves events to the agent via a secret-gated GET endpoint
 
 ```
-Browser                              Your Server
-┌──────────────────┐    POST         ┌──────────────────┐
-│ fetch wrapper    │ ──────────────> │ In-memory array   │
-│ click listener   │   (no auth)    │ (max 500 events)  │
-│ input listener   │                │                    │
-│ nav wrapper      │ <───────────── │ GET (secret req'd) │
-│ error listener   │   Agent reads  │                    │
-└──────────────────┘                └──────────────────┘
+You browse at                        Proxy                          Dev server
+localhost:9877  ──── requests ────>  .webtrace/server.js  ────────> localhost:5173
+                <─── HTML + snippet   (injects snippet,              (your app,
+                                       stores events)                 unchanged)
 ```
+
+No files in your project are touched. The `.webtrace/` folder is excluded via `.git/info/exclude` (a local-only gitignore that's never committed).
 
 ## Removing it
 
-Tell your agent:
+```
+rm -rf .webtrace
+```
 
-> **Remove webtrace from this project.**
-
-The agent reverts the two changes it made: the `<script>` tag and the server endpoint.
+That's it. No files to revert, no config to undo.
 
 ## License
 
