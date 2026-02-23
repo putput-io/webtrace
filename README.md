@@ -2,25 +2,32 @@
 
 See every click, API call, error, and page navigation in your browser — from your AI agent's perspective.
 
-Zero project file changes. Zero dependencies. Works with any framework.
+One script tag. One endpoint. Works with any framework.
 
 ## Setup
 
 Paste this to your AI agent (Claude Code, Cursor, Codex, etc.):
 
-> **Add webtrace to this project so I can reproduce bugs in my browser and you can see exactly what happened. Fetch the setup instructions using `curl -sL` (not WebFetch, to avoid cache): `curl -sL https://raw.githubusercontent.com/putput-io/webtrace/main/AGENT.md`**
+```
+Set up webtrace in this project: curl -sL https://raw.githubusercontent.com/putput-io/webtrace/main/AGENT.md
+```
 
-The agent will create a `.webtrace/` folder (gitignored) containing a small proxy server that sits in front of your dev server. No project files are modified.
+The agent will:
+1. Write a `.webtrace.js` file to your static assets directory (gitignored)
+2. Add `<script src="/.webtrace.js"></script>` to your HTML
+3. Create a small server endpoint to store events in memory
+
+Same port, same workflow. No proxy, no dependencies.
 
 ## Debugging
 
-After setup, the agent will say something like: "All done. Go ahead and test the site at `localhost:<port>` — when something breaks, tell me and I'll be able to tell you exactly what you did."
+After setup, the agent will say: "All done. Go ahead and test the site — when something breaks, tell me and I'll be able to tell you exactly what you did."
 
 Use the site. When something breaks:
 
 > **Something broke. Check the logs.**
 
-The agent reads the event stream — every click, every API call and response, every JS error, every navigation — and tells you what went wrong.
+The agent reads the event stream and tells you what went wrong.
 
 ## What it captures
 
@@ -37,29 +44,15 @@ The agent reads the event stream — every click, every API call and response, e
 
 ## How it works
 
-The agent creates a Node.js proxy server in `.webtrace/` (using only built-in modules, no dependencies). The proxy:
-
-1. Forwards all requests to your real dev server
-2. Injects a ~2KB `<script>` snippet into HTML responses
-3. Receives browser events at `/api/v1/debug` and stores them in memory (capped at 500)
-4. Serves events to the agent via a GET endpoint
-
-```
-You browse at                        Proxy                          Dev server
-localhost:9877  ──── requests ────>  .webtrace/server.js  ────────> localhost:5173
-                <─── HTML + snippet   (injects snippet,              (your app,
-                                       stores events)                 unchanged)
-```
-
-No files in your project are touched. The `.webtrace/` folder is excluded via `.git/info/exclude` (a local-only gitignore that's never committed).
+A ~2KB script monkey-patches browser APIs (`fetch`, `history.pushState`, `Storage.setItem`) and uses event delegation to capture everything without touching application code. Events are batched (300ms debounce) and POSTed to a server endpoint that stores them in a capped in-memory array (max 500). The agent reads events via GET and clears via DELETE.
 
 ## Removing it
 
-```
-rm -rf .webtrace
-```
+1. Delete the `.webtrace.js` file from static assets
+2. Remove the `<script>` tag from your HTML
+3. Delete the server endpoint
 
-That's it. No files to revert, no config to undo.
+Or tell your agent: **"Remove webtrace from this project."**
 
 ## License
 
