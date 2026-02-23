@@ -20,11 +20,13 @@ No npm install. No config files. Two small code changes, fully automated.
 
 ## Debugging
 
-After your user (or you) reproduces a bug, tell your agent:
+After setup, the agent will say: "All done. Go ahead and test the site — when something breaks, tell me and I'll be able to tell you exactly what you did."
 
-> **Check the webtrace logs and tell me what went wrong.**
+Reproduce the bug, then tell your agent:
 
-The agent sees structured JSON — every click, every API request and response, every JS error, every navigation — and can diagnose the issue without asking you to describe what happened or paste your console output.
+> **Something broke. Check the logs.**
+
+The agent silently reads the event stream — every click, every API request and response, every JS error, every navigation — and tells you what went wrong. No curl commands. No console pasting. It just knows.
 
 ## What it captures
 

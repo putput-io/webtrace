@@ -1,264 +1,114 @@
-# Webtrace — Agent Setup Instructions
+# Webtrace — Agent Setup
 
-You are setting up webtrace, a browser-side event interceptor. It captures every user interaction (clicks, API calls, errors, navigation) and sends them to a server endpoint you can read.
+Browser event interceptor. Captures clicks, API calls, errors, navigation. You read the logs via curl.
 
-There are exactly **two changes** to make:
-1. Add the client snippet to the HTML `<head>`
-2. Create a server endpoint to receive and serve events
+## Setup (2 changes)
 
-## Step 1: Detect the framework
+### 1. Detect framework and find the HTML shell
 
-Look at the project's root files to determine the framework:
+| Marker file | Framework | HTML file |
+|---|---|---|
+| `svelte.config.js` | SvelteKit | `src/app.html` |
+| `next.config.*` | Next.js | `app/layout.tsx` |
+| `nuxt.config.ts` | Nuxt | `app.html` |
+| `vite.config.*` (no above) | Vite | `index.html` |
 
-| File | Framework |
-|------|-----------|
-| `svelte.config.js` | SvelteKit |
-| `next.config.js` or `next.config.ts` | Next.js |
-| `nuxt.config.ts` | Nuxt |
-| Express/Fastify/Hono in `package.json` | Node server |
-
-## Step 2: Generate a secret
-
-Generate a random secret string (16+ characters, alphanumeric). You will use this in the server endpoint. **Remember this secret** — you need it to read logs later.
-
-## Step 3: Add the client snippet
-
-Find the project's HTML shell and add this `<script>` tag inside `<head>`, before any application scripts:
-
-- **SvelteKit**: `src/app.html`
-- **Next.js**: `app/layout.tsx` (use `<Script strategy="beforeInteractive">`) or `pages/_document.tsx`
-- **Nuxt**: `nuxt.config.ts` `app.head.script` or `app.html`
-- **Vite (React/Vue)**: `index.html`
-- **Express**: wherever HTML is served/templated
-
-### The snippet
+### 2. Add the snippet to `<head>` (before app scripts)
 
 ```html
+<!-- webtrace -->
 <script>
-(function(){
-var q=[],fl=false,oF=window.fetch;
-function log(t,d){d.page=location.pathname+location.search;q.push({ts:Date.now(),type:t,detail:d});sf();}
-var ft;function sf(){if(!ft)ft=setTimeout(flush,300);}
-function flush(){ft=null;if(!q.length||fl)return;fl=true;var b=q.splice(0);oF('/api/v1/debug',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).catch(function(){}).finally(function(){fl=false;});}
-function ep(el){var p=[];while(el&&el!==document.body&&p.length<4){var s=el.tagName.toLowerCase();if(el.id)s+='#'+el.id;p.unshift(s);el=el.parentElement;}return p.join(' > ');}
-window.fetch=function(input,init){var url=typeof input==='string'?input:(input instanceof Request?input.url:String(input));if(url.indexOf('/api/v1/debug')!==-1)return oF.apply(this,arguments);var method=(init&&init.method)||'GET';var body=init&&init.body;var parsed=null;try{if(body)parsed=JSON.parse(body);}catch(e){}log('fetch_req',{method:method,url:url,body:parsed});return oF.apply(this,arguments).then(function(res){var clone=res.clone();clone.json().then(function(data){log('fetch_res',{status:res.status,method:method,url:url,data:data});}).catch(function(){log('fetch_res',{status:res.status,method:method,url:url,data:'(non-json)'});});return res;}).catch(function(err){log('fetch_err',{method:method,url:url,error:String(err)});throw err;});};
-document.addEventListener('click',function(e){var el=e.target;var text=(el.textContent||'').trim().substring(0,80);var href=null;var a=el.closest?el.closest('a'):null;if(a)href=a.getAttribute('href');var btn=el.closest?el.closest('button'):null;log('click',{el:ep(el),href:href,text:text,isButton:!!btn});},true);
-document.addEventListener('change',function(e){var el=e.target;if(!el.tagName)return;var tag=el.tagName.toLowerCase();if(tag==='input'||tag==='select'||tag==='textarea'){var val=el.value;if(el.type==='password')val='***';else if(val&&val.length>80)val=val.substring(0,80)+'...';log('input',{el:ep(el),name:el.name||el.id||'',type:el.type||'',value:val});}},true);
-document.addEventListener('submit',function(e){var form=e.target;var data={};try{var fd=new FormData(form);fd.forEach(function(v,k){data[k]=typeof v==='string'?v.substring(0,80):'(file)';});}catch(err){}log('submit',{action:form.action||'',method:form.method||'GET',el:ep(form),data:data});},true);
-var oSI=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){log('ls_set',{key:k,value:typeof v==='string'&&v.length>60?v.substring(0,60)+'...':v});return oSI.apply(this,arguments);};
-var oRI=Storage.prototype.removeItem;Storage.prototype.removeItem=function(k){log('ls_remove',{key:k});return oRI.apply(this,arguments);};
-window.addEventListener('popstate',function(){log('nav',{type:'popstate',path:location.pathname+location.search});});
-var oPS=history.pushState;history.pushState=function(){oPS.apply(this,arguments);log('nav',{type:'pushState',path:location.pathname+location.search});};
-var oRS=history.replaceState;history.replaceState=function(){oRS.apply(this,arguments);log('nav',{type:'replaceState',path:location.pathname+location.search});};
-window.addEventListener('error',function(e){log('error',{message:e.message,filename:e.filename,line:e.lineno,col:e.colno});});
-window.addEventListener('unhandledrejection',function(e){log('error',{message:String(e.reason),type:'unhandledrejection'});});
-document.addEventListener('visibilitychange',function(){log('visibility',{hidden:document.hidden});});
-window.addEventListener('beforeunload',function(){flush();});
-log('init',{url:location.href,referrer:document.referrer});
-})();
+(function(){var q=[],fl=!1,oF=window.fetch;function L(t,d){d.page=location.pathname+location.search;q.push({ts:Date.now(),type:t,detail:d});S()}var ft;function S(){ft||(ft=setTimeout(F,300))}function F(){ft=null;if(!q.length||fl)return;fl=!0;var b=q.splice(0);oF("/api/v1/debug",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)}).catch(function(){}).finally(function(){fl=!1})}function P(el){var p=[];while(el&&el!==document.body&&p.length<4){var s=el.tagName.toLowerCase();if(el.id)s+="#"+el.id;p.unshift(s);el=el.parentElement}return p.join(" > ")}window.fetch=function(i,o){var u=typeof i==="string"?i:i instanceof Request?i.url:String(i);if(u.indexOf("/api/v1/debug")!==-1)return oF.apply(this,arguments);var m=(o&&o.method)||"GET",bd=o&&o.body,ps=null;try{if(bd)ps=JSON.parse(bd)}catch(e){}L("fetch_req",{method:m,url:u,body:ps});return oF.apply(this,arguments).then(function(r){var c=r.clone();c.json().then(function(d){L("fetch_res",{status:r.status,method:m,url:u,data:d})}).catch(function(){L("fetch_res",{status:r.status,method:m,url:u,data:"(non-json)"})});return r}).catch(function(e){L("fetch_err",{method:m,url:u,error:String(e)});throw e})};document.addEventListener("click",function(e){var el=e.target,t=(el.textContent||"").trim().substring(0,80),h=null,a=el.closest?el.closest("a"):null;if(a)h=a.getAttribute("href");L("click",{el:P(el),href:h,text:t,isButton:!!(el.closest?el.closest("button"):null)})},!0);document.addEventListener("change",function(e){var el=e.target;if(!el.tagName)return;var tg=el.tagName.toLowerCase();if(tg==="input"||tg==="select"||tg==="textarea"){var v=el.value;if(el.type==="password")v="***";else if(v&&v.length>80)v=v.substring(0,80)+"...";L("input",{el:P(el),name:el.name||el.id||"",type:el.type||"",value:v})}},!0);document.addEventListener("submit",function(e){var f=e.target,d={};try{new FormData(f).forEach(function(v,k){d[k]=typeof v==="string"?v.substring(0,80):"(file)"})}catch(x){}L("submit",{action:f.action||"",method:f.method||"GET",el:P(f),data:d})},!0);var oSI=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){L("ls_set",{key:k,value:typeof v==="string"&&v.length>60?v.substring(0,60)+"...":v});return oSI.apply(this,arguments)};var oRI=Storage.prototype.removeItem;Storage.prototype.removeItem=function(k){L("ls_remove",{key:k});return oRI.apply(this,arguments)};window.addEventListener("popstate",function(){L("nav",{type:"popstate",path:location.pathname+location.search})});var oPS=history.pushState;history.pushState=function(){oPS.apply(this,arguments);L("nav",{type:"pushState",path:location.pathname+location.search})};var oRS=history.replaceState;history.replaceState=function(){oRS.apply(this,arguments);L("nav",{type:"replaceState",path:location.pathname+location.search})};window.addEventListener("error",function(e){L("error",{message:e.message,filename:e.filename,line:e.lineno,col:e.colno})});window.addEventListener("unhandledrejection",function(e){L("error",{message:String(e.reason),type:"unhandledrejection"})});document.addEventListener("visibilitychange",function(){L("visibility",{hidden:document.hidden})});window.addEventListener("beforeunload",function(){F()});L("init",{url:location.href,referrer:document.referrer})})();
 </script>
 ```
 
-## Step 4: Create the server endpoint
+### 3. Create the server endpoint
 
-Create the appropriate endpoint file for the framework. Replace `YOUR_SECRET_HERE` with the secret you generated in Step 2.
+Generate a random secret (16+ hex chars). Create the endpoint file for the detected framework:
 
-### SvelteKit
-
-Create `src/routes/api/v1/debug/+server.ts`:
-
+**SvelteKit** — create `src/routes/api/v1/debug/+server.ts`:
 ```typescript
 import { json, type RequestHandler } from "@sveltejs/kit";
-
-const SECRET = "YOUR_SECRET_HERE";
-const MAX_EVENTS = 500;
+const SECRET = "GENERATED_SECRET";
+const MAX = 500;
 const logs: { ts: number; type: string; detail: unknown }[] = [];
-
 export const POST: RequestHandler = async ({ request }) => {
-  const entries = await request.json();
-  if (Array.isArray(entries)) {
-    logs.push(...entries);
-    while (logs.length > MAX_EVENTS) logs.shift();
-  }
+  const e = await request.json();
+  if (Array.isArray(e)) { logs.push(...e); while (logs.length > MAX) logs.shift(); }
   return json({ ok: true });
 };
-
 export const GET: RequestHandler = async ({ url }) => {
-  if (url.searchParams.get("secret") !== SECRET) {
-    return new Response("", { status: 404 });
-  }
+  if (url.searchParams.get("secret") !== SECRET) return new Response("", { status: 404 });
   const since = Number(url.searchParams.get("since") || 0);
-  const filtered = since ? logs.filter((l) => l.ts > since) : logs;
-  return json(filtered);
+  return json(since ? logs.filter(l => l.ts > since) : logs);
 };
-
 export const DELETE: RequestHandler = async ({ url }) => {
-  if (url.searchParams.get("secret") !== SECRET) {
-    return new Response("", { status: 404 });
-  }
+  if (url.searchParams.get("secret") !== SECRET) return new Response("", { status: 404 });
   logs.length = 0;
   return json({ ok: true });
 };
 ```
 
-### Next.js (App Router)
-
-Create `app/api/debug/route.ts`:
-
+**Next.js** — create `app/api/debug/route.ts`:
 ```typescript
 import { NextRequest, NextResponse } from "next/server";
-
-const SECRET = "YOUR_SECRET_HERE";
-const MAX_EVENTS = 500;
+const SECRET = "GENERATED_SECRET";
+const MAX = 500;
 const logs: { ts: number; type: string; detail: unknown }[] = [];
-
-export async function POST(request: NextRequest) {
-  const entries = await request.json();
-  if (Array.isArray(entries)) {
-    logs.push(...entries);
-    while (logs.length > MAX_EVENTS) logs.shift();
-  }
+export async function POST(req: NextRequest) {
+  const e = await req.json();
+  if (Array.isArray(e)) { logs.push(...e); while (logs.length > MAX) logs.shift(); }
   return NextResponse.json({ ok: true });
 }
-
-export async function GET(request: NextRequest) {
-  const secret = request.nextUrl.searchParams.get("secret");
-  if (secret !== SECRET) return new Response("", { status: 404 });
-  const since = Number(request.nextUrl.searchParams.get("since") || 0);
-  const filtered = since ? logs.filter((l) => l.ts > since) : logs;
-  return NextResponse.json(filtered);
+export async function GET(req: NextRequest) {
+  if (req.nextUrl.searchParams.get("secret") !== SECRET) return new Response("", { status: 404 });
+  const since = Number(req.nextUrl.searchParams.get("since") || 0);
+  return NextResponse.json(since ? logs.filter(l => l.ts > since) : logs);
 }
-
-export async function DELETE(request: NextRequest) {
-  const secret = request.nextUrl.searchParams.get("secret");
-  if (secret !== SECRET) return new Response("", { status: 404 });
+export async function DELETE(req: NextRequest) {
+  if (req.nextUrl.searchParams.get("secret") !== SECRET) return new Response("", { status: 404 });
   logs.length = 0;
   return NextResponse.json({ ok: true });
 }
 ```
 
-### Express
-
-Add to your server file:
-
+**Express** — add to server file:
 ```javascript
-const DEBUG_SECRET = "YOUR_SECRET_HERE";
-const MAX_EVENTS = 500;
-const debugLogs = [];
-
+const WEBTRACE_SECRET = "GENERATED_SECRET";
+const wtLogs = [];
 app.post("/api/v1/debug", express.json(), (req, res) => {
-  if (Array.isArray(req.body)) {
-    debugLogs.push(...req.body);
-    while (debugLogs.length > MAX_EVENTS) debugLogs.shift();
-  }
+  if (Array.isArray(req.body)) { wtLogs.push(...req.body); while (wtLogs.length > 500) wtLogs.shift(); }
   res.json({ ok: true });
 });
-
 app.get("/api/v1/debug", (req, res) => {
-  if (req.query.secret !== DEBUG_SECRET) return res.status(404).send("");
+  if (req.query.secret !== WEBTRACE_SECRET) return res.status(404).send("");
   const since = Number(req.query.since || 0);
-  res.json(since ? debugLogs.filter((l) => l.ts > since) : debugLogs);
+  res.json(since ? wtLogs.filter(l => l.ts > since) : wtLogs);
 });
-
 app.delete("/api/v1/debug", (req, res) => {
-  if (req.query.secret !== DEBUG_SECRET) return res.status(404).send("");
-  debugLogs.length = 0;
-  res.json({ ok: true });
+  if (req.query.secret !== WEBTRACE_SECRET) return res.status(404).send("");
+  wtLogs.length = 0; res.json({ ok: true });
 });
 ```
 
-### Fastify
+### 4. Verify
 
-```javascript
-const DEBUG_SECRET = "YOUR_SECRET_HERE";
-const MAX_EVENTS = 500;
-const debugLogs = [];
+Run: `curl -s "localhost:<PORT>/api/v1/debug?secret=<SECRET>"` — should return `[]`.
 
-fastify.post("/api/v1/debug", async (request) => {
-  if (Array.isArray(request.body)) {
-    debugLogs.push(...request.body);
-    while (debugLogs.length > MAX_EVENTS) debugLogs.shift();
-  }
-  return { ok: true };
-});
+## Agent behavior
 
-fastify.get("/api/v1/debug", async (request, reply) => {
-  if (request.query.secret !== DEBUG_SECRET) return reply.status(404).send("");
-  const since = Number(request.query.since || 0);
-  return since ? debugLogs.filter((l) => l.ts > since) : debugLogs;
-});
+**After setup, tell the user:** "All done. Go ahead and test the site — when something breaks, tell me and I'll be able to tell you exactly what you did."
 
-fastify.delete("/api/v1/debug", async (request, reply) => {
-  if (request.query.secret !== DEBUG_SECRET) return reply.status(404).send("");
-  debugLogs.length = 0;
-  return { ok: true };
-});
-```
+**Do NOT:**
+- Show curl commands to the user
+- Commit the changes (let the user decide)
+- Show the secret to the user (you manage it)
 
-### Hono
+**When the user says "check the webtrace logs" or similar:**
+1. Read the secret from the endpoint file you created
+2. Run: `curl -s "localhost:<PORT>/api/v1/debug?secret=<SECRET>"`
+3. Analyze the JSON events and explain what happened
+4. If needed, filter: `| jq '[.[] | select(.type == "error")]'`
+5. Clear after: `curl -s -X DELETE "localhost:<PORT>/api/v1/debug?secret=<SECRET>"`
 
-```typescript
-const DEBUG_SECRET = "YOUR_SECRET_HERE";
-const MAX_EVENTS = 500;
-const debugLogs: { ts: number; type: string; detail: unknown }[] = [];
-
-app.post("/api/v1/debug", async (c) => {
-  const entries = await c.req.json();
-  if (Array.isArray(entries)) {
-    debugLogs.push(...entries);
-    while (debugLogs.length > MAX_EVENTS) debugLogs.shift();
-  }
-  return c.json({ ok: true });
-});
-
-app.get("/api/v1/debug", (c) => {
-  if (c.req.query("secret") !== DEBUG_SECRET) return c.body("", 404);
-  const since = Number(c.req.query("since") || "0");
-  return c.json(since ? debugLogs.filter((l) => l.ts > since) : debugLogs);
-});
-
-app.delete("/api/v1/debug", (c) => {
-  if (c.req.query("secret") !== DEBUG_SECRET) return c.body("", 404);
-  debugLogs.length = 0;
-  return c.json({ ok: true });
-});
-```
-
-## Step 5: Verify
-
-Start the dev server and run:
-
-```bash
-curl -s "localhost:<PORT>/api/v1/debug?secret=YOUR_SECRET_HERE"
-```
-
-It should return `[]`. Open the app in a browser, click around, then run the curl again — you should see events.
-
-## Reading logs (use these commands when debugging)
-
-```bash
-# All events
-curl -s "localhost:<PORT>/api/v1/debug?secret=YOUR_SECRET_HERE" | jq .
-
-# Only API calls
-curl -s "localhost:<PORT>/api/v1/debug?secret=YOUR_SECRET_HERE" | jq '[.[] | select(.type | startswith("fetch"))]'
-
-# Only errors
-curl -s "localhost:<PORT>/api/v1/debug?secret=YOUR_SECRET_HERE" | jq '[.[] | select(.type == "error")]'
-
-# Only clicks
-curl -s "localhost:<PORT>/api/v1/debug?secret=YOUR_SECRET_HERE" | jq '[.[] | select(.type == "click")]'
-
-# User journey timeline
-curl -s "localhost:<PORT>/api/v1/debug?secret=YOUR_SECRET_HERE" | jq '.[] | "\(.ts) [\(.type)] \(.detail.url // .detail.path // .detail.text // .detail.key // "")"'
-
-# Clear logs before a new debugging session
-curl -s -X DELETE "localhost:<PORT>/api/v1/debug?secret=YOUR_SECRET_HERE"
-```
-
-## Removing webtrace
-
-1. Remove the `<script>` tag from the HTML `<head>`
-2. Delete the server endpoint file (or the route lines if added to an existing file)
-
-That's it. Two changes to undo.
+**To find the secret later:** read the server endpoint file and look for the `SECRET` constant.
