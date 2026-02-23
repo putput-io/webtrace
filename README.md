@@ -8,7 +8,7 @@ Zero project file changes. Zero dependencies. Works with any framework.
 
 Paste this to your AI agent (Claude Code, Cursor, Codex, etc.):
 
-> **Add webtrace to this project so I can reproduce bugs in my browser and you can see exactly what happened. Read the setup instructions at: https://raw.githubusercontent.com/putput-io/webtrace/main/AGENT.md**
+> **Add webtrace to this project so I can reproduce bugs in my browser and you can see exactly what happened. Fetch the setup instructions using `curl -sL` (not WebFetch, to avoid cache): `curl -sL https://raw.githubusercontent.com/putput-io/webtrace/main/AGENT.md`**
 
 The agent will create a `.webtrace/` folder (gitignored) containing a small proxy server that sits in front of your dev server. No project files are modified.
 
@@ -42,7 +42,7 @@ The agent creates a Node.js proxy server in `.webtrace/` (using only built-in mo
 1. Forwards all requests to your real dev server
 2. Injects a ~2KB `<script>` snippet into HTML responses
 3. Receives browser events at `/api/v1/debug` and stores them in memory (capped at 500)
-4. Serves events to the agent via a secret-gated GET endpoint
+4. Serves events to the agent via a GET endpoint
 
 ```
 You browse at                        Proxy                          Dev server
