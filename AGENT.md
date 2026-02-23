@@ -8,10 +8,8 @@ A Node.js proxy server inside `.webtrace/` that:
 
 1. **Proxies all requests** to the real dev server (auto-detect port from the project's dev script or config)
 2. **Injects the snippet below** into every HTML response (before `</head>`)
-3. **Handles `/api/v1/debug`** — POST to receive events, GET to read them (requires secret), DELETE to clear (requires secret)
+3. **Handles `/api/v1/debug`** — POST to receive events, GET to read them, DELETE to clear
 4. **Caps storage** at 500 events in memory. No dependencies — use only Node.js built-ins (`http`, `https`).
-
-Generate a random secret for reading logs. Store it in the proxy code.
 
 ## Setup steps
 
@@ -38,10 +36,9 @@ Inject this exact HTML before `</head>` in every HTML response from the upstream
 **Do NOT:**
 - Modify any project files outside `.webtrace/`
 - Commit anything
-- Show curl commands or the secret to the user
+- Show curl commands to the user
 
 **When the user says "check the logs", "what happened", "something broke", or similar:**
-1. Read the secret from `.webtrace/server.js`
-2. Run: `curl -s "localhost:<PROXY_PORT>/api/v1/debug?secret=<SECRET>"`
-3. Analyze the events and explain what happened
-4. Clear after: `curl -s -X DELETE "localhost:<PROXY_PORT>/api/v1/debug?secret=<SECRET>"`
+1. Run: `curl -s localhost:<PROXY_PORT>/api/v1/debug`
+2. Analyze the events and explain what happened
+3. Clear after: `curl -s -X DELETE localhost:<PROXY_PORT>/api/v1/debug`
